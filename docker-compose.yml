@@ -1,0 +1,32 @@
+# Local testing.
+#
+# Rung 1 — bare HTTP (prove function, drive with VS Code Copilot at http://localhost:8000/mcp):
+#   MCP_AUTH_TOKEN=local-poc-token docker compose up --build
+#
+# Rung 2 — rehearse the HTTPS edge before AWS (flushes out the /mcp/ trailing-slash
+# + header-forwarding behavior that only the App Runner proxy otherwise exposes):
+#   uncomment the `caddy` service below and add a Caddyfile (see DEPLOYMENT.md),
+#   then connect Copilot to https://localhost/mcp instead.
+
+services:
+  security-checker:
+    build:
+      context: .
+    image: security-checker-mcp
+    ports:
+      - "8000:8000"
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8000"
+      MCP_AUTH_TOKEN: "${MCP_AUTH_TOKEN:-local-poc-token}"
+    restart: unless-stopped
+
+  # caddy:
+  #   image: caddy:2
+  #   depends_on: [security-checker]
+  #   ports:
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile
+  #   restart: unless-stopped

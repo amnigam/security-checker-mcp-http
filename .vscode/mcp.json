@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "security-checker": {
+      "type": "http",
+      "url": "http://localhost:8000/mcp",
+      "headers": { "Authorization": "Bearer ${input:scToken}" }
+    }
+  },
+  "inputs": [
+    { "id": "scToken", "type": "promptString", "description": "Security Checker token", "password": true }
+  ]
+}

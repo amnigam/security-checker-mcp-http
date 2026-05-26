@@ -1,0 +1,24 @@
+# Rebuilt fresh inside the image (see Dockerfile build_kb step) so the store
+# always matches the in-image embedding backend.
+knowledge/chroma_store/
+
+# VCS / tooling
+.git/
+.github/
+.vscode/
+.cursor/
+
+# Python caches and envs
+__pycache__/
+*.pyc
+.venv/
+venv/
+.v/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Local artifacts
+security_report*.md
+uv.lock
+*.log
