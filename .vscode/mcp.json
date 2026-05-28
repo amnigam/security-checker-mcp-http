@@ -2,11 +2,7 @@
   "servers": {
     "security-checker": {
       "type": "http",
-      "url": "http://localhost:8000/mcp",
-      "headers": { "Authorization": "Bearer ${input:scToken}" }
+      "url": "https://se-1c53c6e2458f471cae32c31afd175b70.ecs.ap-south-1.on.aws/mcp"
     }
-  },
-  "inputs": [
-    { "id": "scToken", "type": "promptString", "description": "Security Checker token", "password": true }
-  ]
+  }
 }

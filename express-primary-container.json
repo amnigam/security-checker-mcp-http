@@ -1,0 +1,11 @@
+{
+  "image": "389192019675.dkr.ecr.ap-south-1.amazonaws.com/security-checker-mcp:latest",
+  "containerPort": 8000,
+  "environment": [
+    { "name": "MCP_TRANSPORT", "value": "http" },
+    { "name": "MCP_HOST", "value": "0.0.0.0" },
+    { "name": "MCP_PORT", "value": "8000" },
+    { "name": "MCP_ALLOW_UNAUTHENTICATED", "value": "1" }
+  ],
+  "secrets": []
+}

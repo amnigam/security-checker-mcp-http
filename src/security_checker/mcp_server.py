@@ -479,18 +479,35 @@ def _wrap_http(app):
             await _send_json(send, 200, {"status": "ok"})
             return
 
+        # This server is NOT an OAuth-protected resource. Answer OAuth discovery
+        # probes (e.g. VS Code requesting /.well-known/oauth-protected-resource)
+        # with 404 — WITHOUT requiring the token — so the client uses the
+        # configured static bearer header instead of starting an OAuth/DCR flow.
+        # Returning 401 here makes clients believe the resource is OAuth-protected
+        # and triggers the "Dynamic Client Registration not supported" prompt.
+        if path.startswith("/.well-known/"):
+            await _send_json(send, 404, {"error": "not_found"})
+            return
+
         # Normalize trailing slash to avoid the redirect that drops auth/method
         if path == mcp_path + "/":
             scope = dict(scope)
             scope["path"] = mcp_path
             scope["raw_path"] = mcp_path.encode()
 
-        # Bearer auth on the MCP endpoint
+        # Bearer auth on the MCP endpoint.
+        # NOTE: we return 403 (Forbidden), not 401 (Unauthorized), on a
+        # missing/invalid token. A 401 is the trigger that makes IDE MCP
+        # clients (notably VS Code) launch an OAuth/Dynamic-Client-Registration
+        # flow — which this server does not implement — producing a
+        # "client ID" prompt. 403 says "not allowed" without inviting an OAuth
+        # handshake, so a client configured with the correct static header
+        # connects, and one without it is simply refused.
         if token:
             headers = dict(scope.get("headers") or [])
             authz = headers.get(b"authorization", b"").decode()
             if authz != f"Bearer {token}":
-                await _send_json(send, 401, {"error": "unauthorized",
+                await _send_json(send, 403, {"error": "forbidden",
                                              "message": "Missing or invalid bearer token."})
                 return
 
@@ -521,6 +538,35 @@ def _run_http():
     port = int(os.environ.get("MCP_PORT", "8000"))
     mcp.settings.host = host
     mcp.settings.port = port
+
+    # The MCP SDK enables DNS-rebinding protection by default and only allows
+    # localhost Host headers, so a request arriving via a load balancer's
+    # hostname (e.g. *.on.aws) is rejected with 421 Misdirected Request. That
+    # protection targets localhost-bound servers reached from a browser; here
+    # the bearer token + TLS edge are the real gate. Default: allow any Host.
+    # Set MCP_ALLOWED_HOSTS=host1,host2 to lock it to specific hostnames instead.
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    allowed_hosts_env = os.environ.get("MCP_ALLOWED_HOSTS", "*").strip()
+    if allowed_hosts_env in ("", "*"):
+        mcp.settings.transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=False
+        )
+        print("[security-checker] Host check disabled (any Host header accepted).", file=sys.stderr)
+    else:
+        hosts = [h.strip() for h in allowed_hosts_env.split(",") if h.strip()]
+        expanded: list[str] = []
+        for h in hosts:
+            expanded.append(h)              # bare host (HTTPS on :443 sends no port)
+            if not h.endswith(":*"):
+                expanded.append(f"{h}:*")   # and any explicit port
+        origins = [f"https://{h}" for h in hosts] + [f"http://{h}" for h in hosts]
+        mcp.settings.transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=expanded,
+            allowed_origins=origins,
+        )
+        print(f"[security-checker] Allowed Hosts: {expanded}", file=sys.stderr)
 
     app = _wrap_http(mcp.streamable_http_app())
     print(f"[security-checker] Streamable HTTP on http://{host}:{port}{mcp.settings.streamable_http_path}", file=sys.stderr)
